@@ -1,19 +1,8 @@
-
+# Packages and functions-------------------------------------------------------
 library(gmailr)
 library(dplyr)
 library(lubridate)
 library(purrr)
-
-gm_auth_configure(path = "credentials.json")
-gm_auth()
-threads <- gm_threads()
-
-act_threads <- threads[[1]]$threads
-df_threads <- do.call(rbind, act_threads) %>%
-  as_tibble %>%
-  tidyr::unnest(cols = names(.))
-
-df_threads$snippet[[4]]
 
 date_of_id <- function(i) {
   df_threads %>%
@@ -31,6 +20,17 @@ from_of_id <- function(i) {
     gm_from()
 }
 
+# Configure gmail auth --------------------------------------------------------
+gm_auth_configure(path = "credentials.json")
+gm_auth(cache = ".secret")
+
+# Get all threads -------------------------------------------------------------
+# threads <- gm_threads("after:2020/5/25 before:2020/6/9")
+threads <- gm_threads()
+act_threads <- threads[[1]]$threads
+df_threads <- do.call(rbind, act_threads) %>%
+  as_tibble()
+
 df_threads_info <- df_threads %>%
   mutate(
     recd = do.call(rbind, lapply(1:nrow(.), date_of_id)) %>% dmy_hms(),
@@ -38,31 +38,7 @@ df_threads_info <- df_threads %>%
   ) %>%
   tidyr::unnest(cols = from)
 
-df_threads_info
-
-# view the latest thread
-my_threads <- gm_threads(num_results = 10)
-
-# retrieve the latest thread by retrieving the first ID
-
-latest_thread <- gm_thread(gm_id(my_threads)[[1]])
-
-# The messages in the thread will now be in a list
-latest_thread$messages
-
-# Retrieve parts of a specific message with the accessors
-my_msg <- latest_thread$messages[[1]]
-
-gm_to(my_msg)
-gm_from(my_msg)
-gm_date(my_msg)
-gm_subject(my_msg)
-gm_body(my_msg)
-
-
-
-
-
+# Create a health tracker table -----------------------------------------------
 init <- function(day) {
   tibble(
     date = date(day),
