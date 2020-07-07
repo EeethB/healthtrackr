@@ -3,6 +3,7 @@ library(gmailr)
 library(dplyr)
 library(lubridate)
 library(purrr)
+library(stringr)
 
 date_of_id <- function(i) {
   df_threads %>%
@@ -43,7 +44,9 @@ init <- function(day) {
   tibble(
     date = date(day),
     ex_wgt = 0, ex_run = 0, ex_walk = 0, ex_climb = 0,
-    fd_fruit = 0, fd_veg = 0
+    fd_fruit = 0, fd_veg = 0,
+    con_w = FALSE, con_dgt1 = FALSE, con_dgt2 = FALSE,
+    hlt_wgt = 0, hlt_rat = -1, hlt_phys = -1, hlt_ment = -1, hlt_spir = -1,
   )
 }
 
@@ -56,4 +59,47 @@ add_health <- function(hh, date = today(), col, quant) {
     summarise(across(.fns = sum))
 }
 
+health_hist <- init(ymd("2020-07-06"))
+
 health_hist <- add_health(health_hist, col = "ex_wgt", quant = 35)
+
+# Translate emails into health data -------------------------------------------
+words <- tibble::tribble(
+  ~word,                    ~col,
+  "run",                    "ex_run",
+  "ran",                    "ex_run",
+  "jog",                    "ex_run",
+  "lift",                   "ex_wgt",
+  "weight.*[:digit:]{1,2}", "ex_wgt",
+  "walk",                   "ex_walk",
+  "climb",                  "ex_climb",
+  "boulder",                "ex_climb",
+  "veg",                    "fd_veg",
+  "fruit",                  "fd_fruit",
+  "carlie",                 "con_w",
+  "Isla",                   "con_dgt1",
+  "Lea",                    "con_dgt2",
+  "pound",                  "hlt_wgt",
+  "weight.*[:digit:]{3,}",  "hlt_wgt"
+)
+
+mail_body <- "Ran for 30 min!"
+
+low_body <- mail_body %>%
+  str_replace_all("[:punct:]", "") %>%
+  tolower()
+
+val <- low_body %>%
+  str_extract_all("[:digit:]") %>%
+  unlist() %>%
+  paste(collapse = "") %>%
+  as.numeric()
+
+type <- words %>%
+  mutate(match = str_detect(low_body, word)) %>%
+  filter(match) %>%
+  pluck("col", 1)
+
+health_hist <- add_health(health_hist, col = type, quant = val)
+
+health_hist
