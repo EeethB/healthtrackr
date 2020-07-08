@@ -5,6 +5,7 @@ library(lubridate)
 library(purrr)
 library(stringr)
 library(readr)
+library(here)
 
 date_of_id <- function(i) {
   df_threads %>%
@@ -23,7 +24,7 @@ from_of_id <- function(i) {
 }
 
 # Configure gmail auth --------------------------------------------------------
-gm_auth_configure(path = "credentials.json")
+gm_auth_configure(path = here("./credentials.json"))
 gm_auth(email = "ejb.healthtrackr@gmail.com", cache = ".secret")
 
 # Get all threads -------------------------------------------------------------
@@ -46,8 +47,8 @@ init <- function(day) {
   tibble(
     date = date(day),
     ex_wgt = 0, ex_run = 0, ex_walk = 0, ex_climb = 0,
-    fd_fruit = 0, fd_veg = 0,
-    con_w = FALSE, con_dgt1 = FALSE, con_dgt2 = FALSE,
+    fd_fruit = 0, fd_veg = 0, fd_water = 0,
+    con_w = 0, con_dgt1 = 0, con_dgt2 = 0,
     hlt_wgt = 0, hlt_rat = 0, hlt_phys = 0, hlt_ment = 0, hlt_spir = 0,
   )
 }
@@ -79,6 +80,7 @@ parse_body <- function(snippet, recd) {
     "boulder",                "ex_climb",
     "veg",                    "fd_veg",
     "fruit",                  "fd_fruit",
+    "water",                  "fd_water",
     "carlie",                 "con_w",
     "isla",                   "con_dgt1",
     "lea",                    "con_dgt2",
@@ -113,8 +115,6 @@ hlt_list <- purrr::pmap(select(df_threads_info, snippet, recd), parse_body)
 final <- do.call(rbind, hlt_list) %>%
   group_by(date) %>%
   summarise(across(.fns = sum))
-
-today()
 
 write_csv(
   read_csv("R/Archive/health.csv"),
