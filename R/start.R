@@ -2,10 +2,9 @@
 library(gmailr)
 library(dplyr)
 library(lubridate)
-library(purrr)
 library(stringr)
 library(readr)
-library(here)
+library(purrr)
 
 date_of_id <- function(i) {
   df_threads %>%
@@ -24,8 +23,8 @@ from_of_id <- function(i) {
 }
 
 # Configure gmail auth --------------------------------------------------------
-gm_auth_configure(path = here("./credentials.json"))
-gm_auth(email = "ejb.healthtrackr@gmail.com", cache = ".secret")
+gm_auth_configure(path = here::here("./credentials.json"))
+gm_auth(email = "ejb.healthtrackr@gmail.com", cache = ".secret", path = here::here("./credentials.json"))
 
 # Get all threads -------------------------------------------------------------
 # threads <- gm_threads("after:2020/5/25 before:2020/6/9")
@@ -39,11 +38,11 @@ df_threads_info <- df_threads %>%
     recd = do.call(rbind, lapply(1:nrow(.), date_of_id)) %>% dmy_hms(),
     from = do.call(rbind, lapply(1:nrow(.), from_of_id))
   ) %>%
-  tidyr::unnest(cols = from) %>%
+  tidyr::unnest(cols = everything()) %>%
   filter(str_detect(from, "9207285600"))
 
 # Create a health tracker table -----------------------------------------------
-init <- function(day) {
+init <- function(day = today()) {
   tibble(
     date = date(day),
     ex_wgt = 0, ex_run = 0, ex_walk = 0, ex_climb = 0,
@@ -62,7 +61,8 @@ add_health <- function(prior, date = today(), col, quant) {
     summarise(across(.fns = sum))
 }
 
-health_hist <- init(today())
+
+health_hist <- init()
 
 # Translate emails into health data -------------------------------------------
 
@@ -75,6 +75,7 @@ parse_body <- function(snippet, recd) {
     "jog",                    "ex_run",
     "lift",                   "ex_wgt",
     "weight.*[:digit:]{1,2}", "ex_wgt",
+    "[:digit:]{1,2}.*weight", "ex_wgt",
     "walk",                   "ex_walk",
     "climb",                  "ex_climb",
     "boulder",                "ex_climb",
@@ -86,9 +87,12 @@ parse_body <- function(snippet, recd) {
     "lea",                    "con_dgt2",
     "pound",                  "hlt_wgt",
     "weight.*[:digit:]{3,}",  "hlt_wgt",
+    "[:digit:]{3,}.*weight",  "hlt_wgt",
     "phys",                   "hlt_phys",
     "ment",                   "hlt_ment",
-    "spir",                   "hlt_spir"
+    "spir",                   "hlt_spir",
+    "total",                  "hlt_rat",
+    "overall",                "hlt_rat"
   )
 
   low_body <- snippet %>%
@@ -99,18 +103,25 @@ parse_body <- function(snippet, recd) {
     str_extract_all("[:digit:]") %>%
     unlist() %>%
     paste(collapse = "") %>%
-    as.numeric()
+    as.numeric() %>%
+    tidyr::replace_na(1)
 
   type <- words %>%
     mutate(match = str_detect(low_body, word)) %>%
     filter(match) %>%
     pluck("col", 1)
 
-  health_hist <- add_health(health_hist, col = type, quant = val, date = recd)
+  if (str_detect(low_body, "yesterday")) {
+    use_date <- recd - days(1)
+  } else {
+    use_date <- recd
+  }
+
+  add_health(health_hist, col = type, quant = val, date = use_date)
 
 }
 
-hlt_list <- purrr::pmap(select(df_threads_info, snippet, recd), parse_body)
+hlt_list <- pmap(select(df_threads_info, snippet, recd), parse_body)
 
 final <- do.call(rbind, hlt_list) %>%
   group_by(date) %>%
@@ -121,3 +132,5 @@ write_csv(
   glue::glue("R/Archive/health-{today()}.csv")
 )
 write_csv(final, "R/Archive/health.csv")
+
+print(final, width = Inf)

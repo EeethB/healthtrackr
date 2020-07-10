@@ -1,0 +1,13 @@
+# A tibble: 4 x 16
+  date       ex_wgt ex_run ex_walk ex_climb fd_fruit fd_veg fd_water con_w
+  <date>      <dbl>  <dbl>   <dbl>    <dbl>    <dbl>  <dbl>    <dbl> <dbl>
+1 2020-07-07      0      0       0        0        2      0        0     1
+2 2020-07-08     20      0       0        0        3      0        3     0
+3 2020-07-09      0      0       0        0        3      3        7     0
+4 2020-07-10      0      0       0        0        2      1        0     0
+  con_dgt1 con_dgt2 hlt_wgt hlt_rat hlt_phys hlt_ment hlt_spir
+     <dbl>    <dbl>   <dbl>   <dbl>    <dbl>    <dbl>    <dbl>
+1        1        1       0       0        3        7        0
+2        0        0       0       4        2        4        0
+3        1        1       0       5        3        7        0
+4        0        0       0       0        0        0        0
