@@ -1,8 +1,9 @@
-library(gmailr)
+library(pins)
 
-gm_auth_configure(path = here::here("./credentials.json"))
-gm_auth(
-  email = "ejb.healthtrackr@gmail.com",
-  cache = ".secret",
-  path = here::here("./credentials.json")
+pins::board_register(
+  "github",
+  name = "gh",
+  repo = "EeethB/healthtrackr",
+  path = "/pins/",
+  token = "d8ca401d20d784bb37493425b5936a7d6dc4a2de"
 )
