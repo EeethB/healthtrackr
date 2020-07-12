@@ -8,3 +8,8 @@
   rows: 24
   cols: 2
   type: table
+- path: pins/word_map
+  name: word_map
+  rows: 24
+  cols: 2
+  type: table
