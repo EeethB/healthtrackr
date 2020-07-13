@@ -1,0 +1,9 @@
+path:
+- data.csv
+- data.rds
+rows: 24
+cols: 2
+columns:
+  word: character
+  col: character
+type: table
