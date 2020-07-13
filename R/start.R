@@ -77,7 +77,7 @@ parse_body <- function(snippet, recd) {
     name = "gh",
     repo = "EeethB/healthtrackr",
     path = "/pins/",
-    token = "97033126ce9b62728d3800e0c6e911e692d85431"
+    token = read_lines("./../../healthtrackr-token.txt")
   )
 
   word_map <- pins::pin_get("word_map", "gh")
