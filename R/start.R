@@ -23,32 +23,36 @@ from_of_id <- function(i) {
 }
 
 # Configure gmail auth --------------------------------------------------------
+print("Configure")
 gm_auth_configure(path = here::here("./credentials.json"))
 gm_auth(email = "ejb.healthtrackr@gmail.com", cache = ".secret", path = here::here("./credentials.json"))
 
 # Get all threads -------------------------------------------------------------
+print("Threads")
 # threads <- gm_threads("after:2020/5/25 before:2020/6/9")
-threads <- gm_threads()
+threads <- gm_threads("from:9207285600")
 act_threads <- threads[[1]]$threads
 df_threads <- do.call(rbind, act_threads) %>%
   as_tibble()
 
+print("Metadata")
 df_threads_info <- df_threads %>%
   mutate(
     recd = do.call(rbind, lapply(1:nrow(.), date_of_id)) %>% dmy_hms(),
     from = do.call(rbind, lapply(1:nrow(.), from_of_id))
   ) %>%
-  tidyr::unnest(cols = everything()) %>%
-  filter(str_detect(from, "9207285600"))
+  tidyr::unnest(cols = everything())
+# %>%
+  # filter(str_detect(from, "9207285600"))
 
 # Create a health tracker table -----------------------------------------------
 init <- function(day = today()) {
   tibble(
     date = date(day),
-    ex_wgt = 0, ex_run = 0, ex_walk = 0, ex_climb = 0,
-    fd_fruit = 0, fd_veg = 0, fd_water = 0,
+    ex_wgt = NA_real_, ex_run = NA_real_, ex_walk = NA_real_, ex_climb = NA_real_, ex_lbr = NA_real_,
+    fd_fruit = NA_real_, fd_veg = NA_real_, fd_water = NA_real_,
     con_w = 0, con_dgt1 = 0, con_dgt2 = 0,
-    hlt_wgt = 0, hlt_rat = 0, hlt_phys = 0, hlt_ment = 0, hlt_spir = 0,
+    hlt_wgt = NA_real_, hlt_rat = NA_real_, hlt_phys = NA_real_, hlt_ment = NA_real_, hlt_spir = NA_real_,
   )
 }
 
@@ -58,7 +62,7 @@ add_health <- function(prior, date = today(), col, quant) {
   prior %>%
     rbind(new_row) %>%
     group_by(date) %>%
-    summarise(across(.fns = sum))
+    summarise(across(.fns = sum, na.rm = TRUE))
 }
 
 
@@ -68,32 +72,15 @@ health_hist <- init()
 
 parse_body <- function(snippet, recd) {
 
-  words <- tibble::tribble(
-    ~word,                    ~col,
-    "run",                    "ex_run",
-    "ran",                    "ex_run",
-    "jog",                    "ex_run",
-    "lift",                   "ex_wgt",
-    "weight.*[:digit:]{1,2}", "ex_wgt",
-    "[:digit:]{1,2}.*weight", "ex_wgt",
-    "walk",                   "ex_walk",
-    "climb",                  "ex_climb",
-    "boulder",                "ex_climb",
-    "veg",                    "fd_veg",
-    "fruit",                  "fd_fruit",
-    "water",                  "fd_water",
-    "carlie",                 "con_w",
-    "isla",                   "con_dgt1",
-    "lea",                    "con_dgt2",
-    "pound",                  "hlt_wgt",
-    "weight.*[:digit:]{3,}",  "hlt_wgt",
-    "[:digit:]{3,}.*weight",  "hlt_wgt",
-    "phys",                   "hlt_phys",
-    "ment",                   "hlt_ment",
-    "spir",                   "hlt_spir",
-    "total",                  "hlt_rat",
-    "overall",                "hlt_rat"
+  pins::board_register(
+    "github",
+    name = "gh",
+    repo = "EeethB/healthtrackr",
+    path = "/pins/",
+    token = "97033126ce9b62728d3800e0c6e911e692d85431"
   )
+
+  word_map <- pins::pin_get("word_map", "gh")
 
   low_body <- snippet %>%
     str_replace_all("[:punct:]", "") %>%
@@ -106,27 +93,30 @@ parse_body <- function(snippet, recd) {
     as.numeric() %>%
     tidyr::replace_na(1)
 
-  type <- words %>%
+  type <- word_map %>%
     mutate(match = str_detect(low_body, word)) %>%
     filter(match) %>%
     pluck("col", 1)
 
-  if (str_detect(low_body, "yesterday")) {
-    use_date <- recd - days(1)
-  } else {
-    use_date <- recd
-  }
+  use_date <- recd - days(str_detect(low_body, "yesterday"))
 
-  add_health(health_hist, col = type, quant = val, date = use_date)
+  if (is.null(type)) {
+    print(glue::glue("Body text \"{snippet}\" did not match a health category"))
+    return(init())
+  } else {
+    add_health(health_hist, col = type, quant = val, date = use_date)
+  }
 
 }
 
+print("Parse")
 hlt_list <- pmap(select(df_threads_info, snippet, recd), parse_body)
 
 final <- do.call(rbind, hlt_list) %>%
   group_by(date) %>%
-  summarise(across(.fns = sum))
+  summarise(across(.fns = sum, na.rm = TRUE))
 
+print("Save")
 write_csv(
   read_csv("R/Archive/health.csv"),
   glue::glue("R/Archive/health-{today()}.csv")
