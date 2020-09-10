@@ -1,11 +1,6 @@
-library(pins)
-
-pins::board_register(
-  "github",
-  name = "gh",
-  repo = "EeethB/healthtrackr",
-  path = "pins",
-  token = read_lines("./../../healthtrackr-token.txt")
+library(gmailr)
+gm_auth_configure(path = here::here("./credentials.json"))
+gm_auth(
+  email = "ejb.healthtrackr@gmail.com"
 )
-
-pin(mtcars, board = "gh")
+gm_threads()

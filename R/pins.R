@@ -1,7 +1,6 @@
 pins::board_register_github(
   name = "gh",
-  repo = "EeethB/healthtrackr",
-  path = "/pins/",
+  repo = "EeethB/pins",
   token = read_lines("./../../healthtrackr-token.txt")
 )
 
@@ -15,6 +14,8 @@ word_map <- tibble::tribble(
   "[:digit:]{1,2}.*weight", "ex_wgt",
   "walk",                   "ex_walk",
   "labor",                  "ex_lbr",
+  "bike",                   "ex_bike",
+  "cycle",                  "ex_bike",
   "climb",                  "ex_climb",
   "boulder",                "ex_climb",
   "veg",                    "fd_veg",
@@ -29,6 +30,7 @@ word_map <- tibble::tribble(
   "phys",                   "hlt_phys",
   "ment",                   "hlt_ment",
   "spir",                   "hlt_spir",
+  "emot",                   "hlt_emot",
   "total",                  "hlt_rat",
   "overall",                "hlt_rat"
 )

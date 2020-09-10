@@ -6,53 +6,51 @@ library(stringr)
 library(readr)
 library(purrr)
 
-date_of_id <- function(i) {
-  df_threads %>%
-    pluck("id", i) %>%
-    gm_thread() %>%
-    pluck("messages", 1) %>%
-    gm_date()
+date_of_id <- function(id) {
+  map(id, ~ gm_thread(.) %>% pluck("messages", 1) %>% gm_date())
 }
 
-from_of_id <- function(i) {
-  df_threads %>%
-    pluck("id", i) %>%
-    gm_thread() %>%
-    pluck("messages", 1) %>%
-    gm_from()
-}
+options(dplyr.summarise.inform = FALSE)
 
 # Configure gmail auth --------------------------------------------------------
-print("Configure")
+write("Configure", "status.txt")
 gm_auth_configure(path = here::here("./credentials.json"))
-gm_auth(email = "ejb.healthtrackr@gmail.com", cache = ".secret", path = here::here("./credentials.json"))
-
+gm_auth(email = "ejb.healthtrackr@gmail.com")
 # Get all threads -------------------------------------------------------------
-print("Threads")
-# threads <- gm_threads("after:2020/5/25 before:2020/6/9")
-threads <- gm_threads("from:9207285600")
-act_threads <- threads[[1]]$threads
-df_threads <- do.call(rbind, act_threads) %>%
-  as_tibble()
+write("Threads", "status.txt")
+get_threads <- function(date) {
+  threads <- gm_threads(str_glue("from:9207285600 after:{date} before:{date + days(1)}"))
+  act_threads <- threads[[1]]$threads
+  df_threads <- do.call(rbind, act_threads) %>%
+    as_tibble()
+}
 
-print("Metadata")
-df_threads_info <- df_threads %>%
-  mutate(
-    recd = do.call(rbind, lapply(1:nrow(.), date_of_id)) %>% dmy_hms(),
-    from = do.call(rbind, lapply(1:nrow(.), from_of_id))
-  ) %>%
+# dates <- seq(ymd("2020-07-07"), today(), by = "day")
+dates <- seq(ymd("2020-08-03"), ymd("2020-08-03"), by = "day")
+
+df_threads <- dates %>%
+  map(get_threads) %>%
+  bind_rows() %>%
   tidyr::unnest(cols = everything())
-# %>%
-  # filter(str_detect(from, "9207285600"))
+
+write("Metadata", "status.txt")
+df_threads_info <- df_threads  %>%
+  mutate(
+    recd = unlist(date_of_id(id) %>% dmy_hms()),
+    snippet = str_split(snippet, "\n")
+  ) %>%
+  tidyr::unnest_longer(snippet)
 
 # Create a health tracker table -----------------------------------------------
 init <- function(day = today()) {
   tibble(
     date = date(day),
-    ex_wgt = NA_real_, ex_run = NA_real_, ex_walk = NA_real_, ex_climb = NA_real_, ex_lbr = NA_real_,
+    ex_wgt = NA_real_, ex_run = NA_real_, ex_walk = NA_real_,
+      ex_climb = NA_real_, ex_lbr = NA_real_, ex_bike = NA_real_,
     fd_fruit = NA_real_, fd_veg = NA_real_, fd_water = NA_real_,
     con_w = 0, con_dgt1 = 0, con_dgt2 = 0,
-    hlt_wgt = NA_real_, hlt_rat = NA_real_, hlt_phys = NA_real_, hlt_ment = NA_real_, hlt_spir = NA_real_,
+    hlt_wgt = NA_real_, hlt_rat = NA_real_, hlt_phys = NA_real_,
+      hlt_ment = NA_real_, hlt_emot = NA_real_, hlt_spir = NA_real_,
   )
 }
 
@@ -70,16 +68,17 @@ health_hist <- init()
 
 # Translate emails into health data -------------------------------------------
 
+pins::board_register(
+  "github",
+  name = "gh",
+  repo = "EeethB/healthtrackr",
+  path = "/pins/",
+  token = read_lines(here::here("./../../healthtrackr-token.txt"))
+)
+
 parse_body <- function(snippet, recd) {
 
-  pins::board_register(
-    "github",
-    name = "gh",
-    repo = "EeethB/healthtrackr",
-    path = "/pins/",
-    token = read_lines("./../../healthtrackr-token.txt")
-  )
-
+  write(as.character(recd), "status.txt")
   word_map <- pins::pin_get("word_map", "gh")
 
   low_body <- snippet %>%
@@ -109,18 +108,24 @@ parse_body <- function(snippet, recd) {
 
 }
 
-print("Parse")
-hlt_list <- pmap(select(df_threads_info, snippet, recd), parse_body)
-
-final <- do.call(rbind, hlt_list) %>%
+write("Parse", "status.txt")
+df_health <- pmap(select(df_threads_info, snippet, recd), parse_body) %>%
+  bind_rows() %>%
   group_by(date) %>%
   summarise(across(.fns = sum, na.rm = TRUE))
 
-print("Save")
+write("Save", "status.txt")
 write_csv(
-  read_csv("R/Archive/health.csv"),
-  glue::glue("R/Archive/health-{today()}.csv")
+  read_csv(here::here("R/Archive/health.csv")),
+  glue::glue(here::here("R/Archive/health-{today()}.csv"))
 )
-write_csv(final, "R/Archive/health.csv")
+write_csv(df_health, here::here("R/Archive/health.csv"))
 
-print(final, width = Inf)
+print(df_health, width = Inf)
+
+df_analysis <- df_health %>%
+  na_if(0)
+
+library(ggplot2)
+
+ggplot(df_health) + geom_point(aes(hlt_emot, hlt_rat))
