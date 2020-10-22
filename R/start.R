@@ -1,13 +1,11 @@
 # Packages and functions-------------------------------------------------------
 library(gmailr)
-library(dplyr)
+library(tidyverse)
 library(lubridate)
-library(stringr)
-library(readr)
-library(purrr)
 
 date_of_id <- function(id) {
-  map(id, ~ gm_thread(.) %>% pluck("messages", 1) %>% gm_date())
+  map(id, ~ gm_thread(.) %>% pluck("messages", 1) %>% gm_date()) %>%
+    unlist()
 }
 
 options(dplyr.summarise.inform = FALSE)
@@ -19,14 +17,25 @@ gm_auth(email = "ejb.healthtrackr@gmail.com")
 # Get all threads -------------------------------------------------------------
 write("Threads", "status.txt")
 get_threads <- function(date) {
-  threads <- gm_threads(str_glue("from:9207285600 after:{date} before:{date + days(1)}"))
+  threads <- gm_threads(str_glue("from:9207285600 after:{date} before:{date + days(2)}"))
   act_threads <- threads[[1]]$threads
-  df_threads <- do.call(rbind, act_threads) %>%
-    as_tibble()
+  if (!is.null(act_threads)) {
+    df_threads <- act_threads %>%
+      bind_rows() %>%
+      mutate(recd = .data$id %>%
+               date_of_id() %>%
+               dmy_hms() %>%
+               subtract(hours(1)) %>%
+               as_date()
+      ) %>%
+      filter(recd == date)
+  } else {
+    tibble()
+  }
 }
 
-# dates <- seq(ymd("2020-07-07"), today(), by = "day")
-dates <- seq(ymd("2020-08-03"), ymd("2020-08-03"), by = "day")
+dates <- seq(ymd("2020-07-07"), today() + days(1), by = "day")
+# dates <- seq(ymd("2020-08-02"), ymd("2020-08-04"), by = "day")
 
 df_threads <- dates %>%
   map(get_threads) %>%
@@ -34,12 +43,9 @@ df_threads <- dates %>%
   tidyr::unnest(cols = everything())
 
 write("Metadata", "status.txt")
-df_threads_info <- df_threads  %>%
-  mutate(
-    recd = unlist(date_of_id(id) %>% dmy_hms()),
-    snippet = str_split(snippet, "\n")
-  ) %>%
-  tidyr::unnest_longer(snippet)
+# df_threads_info <- df_threads  %>%
+#   mutate(recd = unlist(date_of_id(id) %>% dmy_hms())) %>%
+#   tidyr::unnest_longer(snippet)
 
 # Create a health tracker table -----------------------------------------------
 init <- function(day = today()) {
@@ -109,7 +115,7 @@ parse_body <- function(snippet, recd) {
 }
 
 write("Parse", "status.txt")
-df_health <- pmap(select(df_threads_info, snippet, recd), parse_body) %>%
+df_health <- pmap(select(df_threads, snippet, recd), parse_body) %>%
   bind_rows() %>%
   group_by(date) %>%
   summarise(across(.fns = sum, na.rm = TRUE))
@@ -129,3 +135,6 @@ df_analysis <- df_health %>%
 library(ggplot2)
 
 ggplot(df_health) + geom_point(aes(hlt_emot, hlt_rat))
+
+ggplot(df_health) +
+  geom_col(aes(date, hlt_rat), width = .5)
